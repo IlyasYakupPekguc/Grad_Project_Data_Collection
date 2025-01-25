@@ -13,6 +13,7 @@ func main() {
 
 	// Calling print() function
 	fmt.Print(str1, str2, str3, "\n")
+	fmt.Print("deneme")
 
 	// It is conventional not to worry about any
 	// error returned by Print.

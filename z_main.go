@@ -1,1 +1,20 @@
-package Grad_Project_Data_Collection
+package main
+
+// Importing fmt
+import (
+	"fmt"
+)
+
+// Calling main
+func main() {
+
+	// Declaring some const variables
+	const str1, str2, str3 = "a", "b", "c"
+
+	// Calling print() function
+	fmt.Print(str1, str2, str3, "\n")
+
+	// It is conventional not to worry about any
+	// error returned by Print.
+
+}

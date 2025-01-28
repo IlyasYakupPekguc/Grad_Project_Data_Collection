@@ -1,0 +1,38 @@
+[
+  {
+    "interface": "lo",
+    "timestamp": "2025-01-28T10:57:17.301712+03:00",
+    "size": 139,
+    "protocol": "UDP",
+    "source_ip": "127.0.0.53",
+    "destination_ip": "127.0.0.1",
+    "source_port": 53,
+    "destination_port": 55225,
+    "packet_type": "IPv4",
+    "flags": null
+  },
+  {
+    "interface": "lo",
+    "timestamp": "2025-01-28T10:57:17.321607+03:00",
+    "size": 204,
+    "protocol": "UDP",
+    "source_ip": "127.0.0.53",
+    "destination_ip": "127.0.0.1",
+    "source_port": 53,
+    "destination_port": 17438,
+    "packet_type": "IPv4",
+    "flags": null
+  },
+  {
+    "interface": "lo",
+    "timestamp": "2025-01-28T10:58:00.558107+03:00",
+    "size": 86,
+    "protocol": "UDP",
+    "source_ip": "127.0.0.1",
+    "destination_ip": "127.0.0.53",
+    "source_port": 34337,
+    "destination_port": 53,
+    "packet_type": "IPv4",
+    "flags": null
+  }
+]

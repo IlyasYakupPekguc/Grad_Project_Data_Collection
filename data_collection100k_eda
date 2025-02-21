@@ -1,0 +1,144 @@
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"log"
+	"os"
+	"os/signal"
+	"time"
+
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/pcap"
+)
+
+const (
+	snapshotLen int32         = 1024 // Yakalanan paket başına maksimum uzunluk
+	promiscuous bool          = false
+	timeout     time.Duration = 30 * time.Second
+	batchSize   int           = 100000 // Her dosyaya kaydedilecek paket sayısı
+)
+
+func main() {
+	// 1. Kullanılabilir ağ cihazlarını bul
+	devices, err := pcap.FindAllDevs()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("Available Network Devices:")
+	for _, device := range devices {
+		fmt.Printf("Name: %s, Description: %s\n", device.Name, device.Description)
+	}
+
+	// 2. Kullanıcıdan cihaz seçimi alın
+	var deviceName string
+	fmt.Print("Enter the name of the device to capture traffic: ")
+	fmt.Scanln(&deviceName)
+
+	// 3. Seçilen cihazdan veri yakalamaya başla
+	handle, err := pcap.OpenLive(deviceName, snapshotLen, promiscuous, timeout)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer handle.Close()
+
+	// Yalnızca TCP protokolünü dinle
+	if err := handle.SetBPFFilter("tcp"); err != nil {
+		log.Fatal("Error setting BPF filter: ", err)
+	}
+	fmt.Println("Starting packet capture (TCP only)... Press Ctrl+C to stop.")
+
+	// 4. Çıkış sinyallerini bekle
+	stopSignal := make(chan os.Signal, 1)
+	signal.Notify(stopSignal, os.Interrupt)
+
+	// Paketleri saklamak için slice ve dosya sayacı
+	var capturedPackets []PacketData
+	fileCounter := 1
+
+	// Paketleri analiz etmek için bir go rutini başlat
+	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
+	go func() {
+		for packet := range packetSource.Packets() {
+			packetData := processPacket(packet)
+			capturedPackets = append(capturedPackets, packetData)
+
+			if len(capturedPackets) >= batchSize {
+				fileName := fmt.Sprintf("traffic_data_%d.json", fileCounter)
+				saveToJSONFile(fileName, capturedPackets)
+				capturedPackets = nil // Slice'i sıfırla
+				fileCounter++
+			}
+		}
+	}()
+
+	// Çıkış sinyali geldiğinde kalan verileri kaydet
+	<-stopSignal
+	fmt.Println("\nPacket capture stopped. Saving remaining data to file...")
+
+	if len(capturedPackets) > 0 {
+		fileName := fmt.Sprintf("traffic_data_%d.json", fileCounter)
+		saveToJSONFile(fileName, capturedPackets)
+	}
+}
+
+// PacketData yakalanan bir paketin temel bilgilerini tutar
+type PacketData struct {
+	Timestamp       time.Time `json:"timestamp"`
+	Length          int       `json:"length"`
+	SourceIP        string    `json:"source_ip,omitempty"`
+	DestinationIP   string    `json:"destination_ip,omitempty"`
+	SourcePort      string    `json:"source_port,omitempty"`
+	DestinationPort string    `json:"destination_port,omitempty"`
+	Protocol        string    `json:"protocol,omitempty"`
+}
+
+// processPacket bir paketi işler ve gerekli bilgileri döndürür
+func processPacket(packet gopacket.Packet) PacketData {
+	packetMetadata := packet.Metadata()
+	timestamp := packetMetadata.Timestamp
+	length := packetMetadata.CaptureLength
+
+	var srcIP, dstIP, srcPort, dstPort, protocol string
+
+	// Ağ katmanı bilgileri
+	if networkLayer := packet.NetworkLayer(); networkLayer != nil {
+		srcIP = networkLayer.NetworkFlow().Src().String()
+		dstIP = networkLayer.NetworkFlow().Dst().String()
+	}
+
+	// Taşıma katmanı bilgileri
+	if transportLayer := packet.TransportLayer(); transportLayer != nil {
+		srcPort = transportLayer.TransportFlow().Src().String()
+		dstPort = transportLayer.TransportFlow().Dst().String()
+		protocol = transportLayer.LayerType().String()
+	}
+
+	return PacketData{
+		Timestamp:       timestamp,
+		Length:          length,
+		SourceIP:        srcIP,
+		DestinationIP:   dstIP,
+		SourcePort:      srcPort,
+		DestinationPort: dstPort,
+		Protocol:        protocol,
+	}
+}
+
+// saveToJSONFile JSON formatında verileri kaydeder
+func saveToJSONFile(filename string, data []PacketData) {
+	file, err := os.Create(filename)
+	if err != nil {
+		log.Fatalf("Failed to create file: %v", err)
+	}
+	defer file.Close()
+
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ") // JSON dosyasını düzenli hale getirir
+	if err := encoder.Encode(data); err != nil {
+		log.Fatalf("Failed to write to file: %v", err)
+	}
+
+	fmt.Printf("Data saved to %s\n", filename)
+}
